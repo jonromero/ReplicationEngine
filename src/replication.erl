@@ -1,23 +1,42 @@
 -module(replication).
 
--export([start/1, stop/0]).
+-export([start/2, start/3, stop/0]).
 -export([cluster/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate_from/0, replicate_from/1]).
 
 -include("node_records.hrl").
 
-start(ShortName) ->
+start(ShortName, Cookie, master) ->
 	net_kernel:start([ShortName, shortnames]),
+	erlang:set_cookie(node(), Cookie),
 
 	% starting mnesia
 	mnesia:create_schema(node()),
 	mnesia:start(),
-	mnesia:create_table(ldb_nodes, [{type, set},
-									   {ram_copies,[node()]},
-									   {local_content, true},
-									   {attributes, record_info(fields, ldb_nodes)}]).
+	case mnesia:create_table(ldb_nodes, [{type, set},
+										 {ram_copies,[node()]},
+										 {local_content, false},
+										 {attributes, record_info(fields, ldb_nodes)}]) of
+		{atomic, ok} ->
+			ok;
+		Error ->
+			{failed_master, Error}
+	end.
+  
 
+start(ShortName, Cookie) ->
+	net_kernel:start([ShortName, shortnames]),
+	erlang:set_cookie(node(), Cookie),
+
+	% starting mnesia for replication slave
+	case mnesia:start() of
+		ok ->
+			ok;
+		Error ->
+			{failed_slave, Error}
+	end.
 
 stop() ->
+	net_kernel:stop(),
 	mnesia:stop().
 
 cluster() ->
@@ -26,9 +45,10 @@ cluster() ->
 	% update if not
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 		[Data] -> 
-			{_, {MasterNode, [SlaveNodes]}} = Data;
-		_ ->
-			{not_connected, {}}
+			{ldb_nodes, _, MasterNode, SlaveNodes} = Data,
+			{connected, [MasterNode, SlaveNodes]};
+		Error ->
+			{not_connected, Error}
 	end.
 
 join_cluster(ClusterName) ->
@@ -47,25 +67,24 @@ join_cluster(ClusterName) ->
 			Error
 	end.
 
-
 leave_cluster() ->
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 		[Data] -> 
-			{_, {MasterNode, [SlaveNodes]}} = Data,
+			{ldb_nodes, _, MasterNode, SlaveNodes} = Data,
 			% TODO: remove node() from list
 			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=SlaveNodes}),
-			{left_cluster, {}};
-		_ ->
-			{not_connected, {}}
+			{disconnect_cluster, {}};
+		Error ->
+			{not_connected, Error}
 	end.
 
 whois_Master() ->
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 		[Data] -> 
-			{_ , {MasterNode, _ }} = Data,
+			{ldb_nodes_, "ldbNodes", MasterNode, [SlaveNodes]} = Data,
 		    {ok, MasterNode};
-		_ ->
-			{not_connected, {}}
+		Error ->
+			{not_connected, Error}
 	end.
 
 replicate_from() ->
