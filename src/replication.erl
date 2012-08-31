@@ -94,28 +94,27 @@ leave_cluster() ->
 
 whois_Master() ->
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
-		[Data] -> 
-			{ldb_nodes_, "ldbNodes", MasterNode, [SlaveNodes]} = Data,
+		[{ldb_nodes_, "ldbNodes", MasterNode, [SlaveNodes]}] -> 
 		    {ok, MasterNode};
 		Error ->
 			{not_connected, Error}
 	end.
 
 am_I_Master() ->
-	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
-		[{ldb_nodes, _, node(), _}] ->  yes;
-		[{ldb_nodes, _, _, _}] -> no;
+	case whois_Master() of
+		{ok, node()} -> yes;
+		{ok, _} -> no;
 		Error ->
 			{not_connected, Error}
 	end.
 	
-make_me_Master() ->
+make_Master(NodeName) ->
 	if not am_I_Master() ->
 
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 		[{ldb_nodes, _, MasterNode, SlaveNodes}] -> 
 			if node() in SlaveNodes ->
-					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=node(), slave_nodes=SlaveNodes-node()}),
+					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=NodeName, slave_nodes=SlaveNodes - NodeName}),
 			{ok, i_am_master};
 		Error ->
 			{not_connected, Error}
