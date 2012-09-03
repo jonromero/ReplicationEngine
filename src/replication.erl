@@ -1,10 +1,12 @@
 -module(replication).
 
 -export([start/2, start/3, stop/0]).
--export([cluster/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate/0, replicate/1]).
+-export([cluster/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate/1, make_Master/1, am_I_Master/1]).
 
 -include("node_records.hrl").
 
+% you need to start epmd first
+% try running an erl -sname smth
 start(ShortName, Cookie, master) ->
 	net_kernel:start([ShortName, shortnames]),
 	erlang:set_cookie(node(), Cookie),
@@ -17,9 +19,10 @@ start(ShortName, Cookie, master) ->
 										 {local_content, false},
 										 {attributes, record_info(fields, ldb_nodes)}]) of
 		{atomic, ok} ->
-			ok;
+			io:format("I AM NODE ~p ~n", [node()]),
+			make_Master(node());
 		Error ->
-			{failed_master, Error}
+			{error, {failed_master, Error}}
 	end.
   
 
@@ -30,9 +33,9 @@ start(ShortName, Cookie) ->
 	% starting mnesia for replication slave
 	case mnesia:start() of
 		ok ->
-			ok;
+			{ok, slave};
 		Error ->
-			{failed_slave, Error}
+			{error, {failed_slave, Error}}
 	end.
 
 stop() ->
@@ -40,88 +43,93 @@ stop() ->
 	mnesia:stop().
 
 cluster() ->
-	AvailableNodes = [node(), nodes()],
-	% TODO: check if available nodes are up
-	% update if not
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 		[Data] -> 
 			{ldb_nodes, _, MasterNode, SlaveNodes} = Data,
 			{connected, [MasterNode, SlaveNodes]};
 		Error ->
-			{not_connected, Error}
+			{error, {not_connected, Error}}
 	end.
 
 %
 % Join cluster as slave
 %
 join_cluster(ClusterName) ->
-	% check if this node is already part of cluster
-	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
-		[{ldb_nodes, _, MasterNode, SlaveNodes}] ->
-			case lists:filter(fun(X) -> node() == X end, lists:flatten([MasterNode | SlaveNodes])) of
-				[] -> % not in cluster, lets add the node
-					case mnesia:change_config(extra_db_nodes, [ClusterName]) of
-						{ok, [_]} -> 							
-							mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", slave_nodes=[SlaveNodes|node()]}),
-							{connected, [Nodes]};
-						{ok, []} ->
-							{not_connected, {}};
-						Error ->
-							Error
-					end;
-				_ -> 
-				  {already_in, error}
+	case mnesia:change_config(extra_db_nodes, [ClusterName]) of
+		{ok, [_]} -> % connected to cluster, lets read info
+			case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
+				[{ldb_nodes, _, MasterNode, SlaveNodes}] ->
+					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=sets:to_list(sets:from_list(SlaveNodes ++ [node()]))}),
+					
+					{connected, SlaveNodes};
+				Error ->
+					{error, {mnesia_error, Error}}
 			end;
+		{ok, []} ->
+			{error, {not_connected, {}}};
 		Error ->
-			{not_connected, Error}
+			Error
 	end.
 
 
 leave_cluster() ->
+	IsMaster = am_I_Master(node()),
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
+		_ when IsMaster =:= yes ->
+			{error, {not_permitted, {}}};
+
 		[Data] -> 
 			{ldb_nodes, _, MasterNode, SlaveNodes} = Data,
 			% TODO: remove node() from list
 			
-			if am_I_Master() ->
-					you_cannot_leave_the_cluster, a slave must Master you
-
 			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=SlaveNodes}),
 			{disconnect_cluster, {}};
 		Error ->
-			{not_connected, Error}
+			{error, {not_connected, Error}}
 	end.
 
 whois_Master() ->
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
-		[{ldb_nodes_, "ldbNodes", MasterNode, [SlaveNodes]}] -> 
+		[{ldb_nodes, "ldbNodes", MasterNode, [_]}] -> 
 		    {ok, MasterNode};
 		Error ->
-			{not_connected, Error}
+			{error, {not_connected, Error}}
 	end.
 
-am_I_Master() ->
+am_I_Master(NodeName) ->
 	case whois_Master() of
-		{ok, node()} -> yes;
+		{ok, NodeName} -> yes;
 		{ok, _} -> no;
 		Error ->
-			{not_connected, Error}
+			{error, {not_connected, Error}}
 	end.
 	
 make_Master(NodeName) ->
-	if not am_I_Master() ->
-
+	IsMaster = am_I_Master(NodeName),
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
-		[{ldb_nodes, _, MasterNode, SlaveNodes}] -> 
-			if node() in SlaveNodes ->
-					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=NodeName, slave_nodes=SlaveNodes - NodeName}),
+		_ when IsMaster =:= yes ->
+			{error, {already_master, {}}};
+
+		%% node is the first master
+		[] ->
+			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=NodeName, slave_nodes=[]}),
 			{ok, i_am_master};
+
+		%% if node is a slave
+		%% remove him from there!
+		[{ldb_nodes, _, MasterNode, SlaveNodes}] ->
+			NodeIsSlave = (SlaveNodes =/= ([NodeName] -- SlaveNodes)),
+			if NodeIsSlave =:= true  ->
+					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=NodeName, 
+												  slave_nodes= (SlaveNodes -- [NodeName]) ++ [MasterNode]}),
+					{ok, i_am_master};
+			   true ->
+					{error, {already_master, {}}}
+			end;
 		Error ->
-			{not_connected, Error}
+			{error, {not_connected, Error}}
 	end.
 
-replicate() ->
-	replicate(whois_Master()).
-
+% replication(whois_Master()).
 replicate(Node) ->
-	ok.
+	Node.
