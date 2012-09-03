@@ -1,7 +1,7 @@
 -module(replication).
 
 -export([start/2, start/3, stop/0]).
--export([cluster/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate/1, make_Master/1, am_I_Master/1]).
+-export([refresh/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate/1, make_Master/1, am_I_Master/1, check_if_alive/1]).
 
 -include("node_records.hrl").
 
@@ -17,9 +17,12 @@ start(ShortName, Cookie, master) ->
 	case mnesia:create_table(ldb_nodes, [{type, set},
 										 {ram_copies,[node()]},
 										 {local_content, false},
-										 {attributes, record_info(fields, ldb_nodes)}]) of
+										 {attributes, record_info(fields, ldb_nodes)}])  of
 		{atomic, ok} ->
-			io:format("I AM NODE ~p ~n", [node()]),
+			mnesia:create_table(node_info, [{type, set},
+											{ram_copies,[node()]},
+											{local_content, false},
+											{attributes, record_info(fields, node_info)}]),
 			make_Master(node());
 		Error ->
 			{error, {failed_master, Error}}
@@ -42,13 +45,54 @@ stop() ->
 	net_kernel:stop(),
 	mnesia:stop().
 
-cluster() ->
+% Returns a new Master based
+% on who was the last the got replicated data
+elections(LiveNodes) ->
+	NodesInfo = lists:map(fun(X) -> 
+								  mnesia:dirty_read(node_info, X) end, 
+						  LiveNodes),
+						  
+	SortedNodes = lists:map(fun(Y) ->
+									Y end,
+							endlist:keysort(1, NodesInfo)),
+	SortedNodes.
+	
+%
+% Returns the nodes that are active,
+% cleaning the table of dead nodes
+% and elects a new Master if there is no Master
+%
+refresh() ->
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 		[Data] -> 
 			{ldb_nodes, _, MasterNode, SlaveNodes} = Data,
-			{connected, [MasterNode, SlaveNodes]};
+
+			% remove slave nodes that are down
+			SlaveNodesUp = lists:filter(fun(X) -> 
+									 check_if_alive(X) end,
+							 SlaveNodes),
+
+			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=sets:to_list(sets:from_list(SlaveNodesUp))}),
+
+			% if Master node is down, re-elect a new node
+			MasterStatus = check_if_alive(MasterNode),
+			if MasterStatus =:= false ->
+					io:format("---> No master node, going to elections ~n", []),
+					[NewMaster|NewSlaves] = elections(SlaveNodesUp),
+					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=NewMaster, slave_nodes=NewSlaves}),
+					{ready, [NewMaster, NewSlaves]};
+			   true -> 
+					{ready, [MasterNode, SlaveNodesUp]}
+			end;
 		Error ->
 			{error, {not_connected, Error}}
+	end.
+
+
+check_if_alive(NodeName) ->
+	NodeResp = net_adm:ping(NodeName),
+	if NodeResp =:= pong -> true;
+	   true -> false
 	end.
 
 %
@@ -57,10 +101,18 @@ cluster() ->
 join_cluster(ClusterName) ->
 	case mnesia:change_config(extra_db_nodes, [ClusterName]) of
 		{ok, [_]} -> % connected to cluster, lets read info
+			
+			% make a copy of the Master MnesiaTable
+			mnesia:add_table_copy(ldb_nodes, node(), ram_copies),
+			mnesia:add_table_copy(node_info, node(), ram_copies),
+
 			case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 				[{ldb_nodes, _, MasterNode, SlaveNodes}] ->
+
 					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=sets:to_list(sets:from_list(SlaveNodes ++ [node()]))}),
-					
+					% start replicating data
+					replicate(MasterNode),
+
 					{connected, SlaveNodes};
 				Error ->
 					{error, {mnesia_error, Error}}
@@ -132,4 +184,11 @@ make_Master(NodeName) ->
 
 % replication(whois_Master()).
 replicate(Node) ->
-	Node.
+	io:format("--> [Replication Started] ~n", []),
+
+	% replication
+
+	io:format("--> [Replication Finished]", []),
+
+	% Updating replication stamp
+	mnesia:dirty_write(#node_info{node_name=Node, replication_time=element(2,now())}).
