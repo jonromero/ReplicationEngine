@@ -54,10 +54,10 @@ elections(LiveNodes) ->
 	
 	io:format("XA ~p ~p ~n", [NodesInfo, LiveNodes]),
 						  
-	SortedNodes = lists:map(fun(Y) ->
-									element(2, Y) end,
-							lists:keysort(3, NodesInfo)),
-	
+	SortedNodes = lists:reverse(lists:map(fun(Y) ->
+												  element(2, Y) end,
+										  lists:keysort(3, NodesInfo))),
+								
 	io:format("Sorted nodes ~p ~n", [SortedNodes]),
 	SortedNodes.
 	
