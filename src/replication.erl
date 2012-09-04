@@ -1,7 +1,7 @@
 -module(replication).
 
 -export([start/2, start/3, stop/0]).
--export([refresh/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate/1, make_Master/1, am_I_Master/1, check_if_alive/1]).
+-export([refresh/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate/0, make_Master/1, am_I_Master/1, check_if_alive/1]).
 
 -include("node_records.hrl").
 
@@ -48,13 +48,17 @@ stop() ->
 % Returns a new Master based
 % on who was the last the got replicated data
 elections(LiveNodes) ->
-	NodesInfo = lists:map(fun(X) -> 
-								  mnesia:dirty_read(node_info, X) end, 
-						  LiveNodes),
+	NodesInfo = lists:flatten(lists:map(fun(X) -> 
+												mnesia:dirty_read(node_info, X) end, 
+										LiveNodes)),
+	
+	io:format("XA ~p ~p ~n", [NodesInfo, LiveNodes]),
 						  
 	SortedNodes = lists:map(fun(Y) ->
-									Y end,
-							endlist:keysort(1, NodesInfo)),
+									element(2, Y) end,
+							lists:keysort(3, NodesInfo)),
+	
+	io:format("Sorted nodes ~p ~n", [SortedNodes]),
 	SortedNodes.
 	
 %
@@ -106,12 +110,15 @@ join_cluster(ClusterName) ->
 			mnesia:add_table_copy(ldb_nodes, node(), ram_copies),
 			mnesia:add_table_copy(node_info, node(), ram_copies),
 
+			% it is a network, wait for 10 secs
+			mnesia:wait_for_tables([ldb_nodes, node_info], 10000),
+
 			case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 				[{ldb_nodes, _, MasterNode, SlaveNodes}] ->
 
 					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=sets:to_list(sets:from_list(SlaveNodes ++ [node()]))}),
 					% start replicating data
-					replicate(MasterNode),
+					replicate(),
 
 					{connected, SlaveNodes};
 				Error ->
@@ -142,7 +149,7 @@ leave_cluster() ->
 
 whois_Master() ->
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
-		[{ldb_nodes, "ldbNodes", MasterNode, [_]}] -> 
+		[{ldb_nodes, "ldbNodes", MasterNode, _}] -> 
 		    {ok, MasterNode};
 		Error ->
 			{error, {not_connected, Error}}
@@ -182,13 +189,23 @@ make_Master(NodeName) ->
 			{error, {not_connected, Error}}
 	end.
 
-% replication(whois_Master()).
-replicate(Node) ->
+replicate() ->
 	io:format("--> [Replication Started] ~n", []),
 
 	% replication
+	{ok, Master} = whois_Master(),
 
-	io:format("--> [Replication Finished]", []),
+	NodeStatus = check_if_alive(Master),
+	case NodeStatus of 
+		true ->
+			% replicate
+			ok;
+	    false -> % elect a new Master
+			refresh(),
+			replicate()
+	end,
+
+	io:format("--> [Replication Finished] ~n", []),
 
 	% Updating replication stamp
-	mnesia:dirty_write(#node_info{node_name=Node, replication_time=element(2,now())}).
+	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2,now())}).
