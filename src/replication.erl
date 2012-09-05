@@ -1,14 +1,14 @@
 -module(replication).
 
 -export([start/2, start/3, stop/0]).
--export([refresh/0, join_cluster/1, leave_cluster/0, whois_Master/0, replicate/0, make_Master/1, am_I_Master/1, check_if_alive/1]).
+-export([refresh/0, join_cluster/1, join_cluster/2, leave_cluster/0, whois_Master/0, replicate/0, make_Master/1, make_Observer/1, am_I_Master/1, am_I_Slave/1, test_slave/1]).
 
 -include("node_records.hrl").
 
 % you need to start epmd first
-% try running an erl -sname smth
-start(ShortName, Cookie, master) ->
-	net_kernel:start([ShortName, shortnames]),
+% try running an erl -name smth
+start(LongName, Cookie, master) ->
+	net_kernel:start([LongName, longnames]),
 	erlang:set_cookie(node(), Cookie),
 
 	% starting mnesia
@@ -29,8 +29,8 @@ start(ShortName, Cookie, master) ->
 	end.
   
 
-start(ShortName, Cookie) ->
-	net_kernel:start([ShortName, shortnames]),
+start(LongName, Cookie) ->
+	net_kernel:start([LongName, longnames]),
 	erlang:set_cookie(node(), Cookie),
 
 	% starting mnesia for replication slave
@@ -80,7 +80,7 @@ refresh() ->
 			ObserverNodesUp = lists:filter(fun(X) -> 
 												   check_if_alive(X) end,
 										   ObserverNodes),
-
+			
 			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, 
 										  slave_nodes=sets:to_list(sets:from_list(SlaveNodesUp)),
 										  observer_nodes=sets:to_list(sets:from_list(ObserverNodesUp))}),
@@ -108,14 +108,6 @@ check_if_alive(NodeName) ->
 
 
 %
-% Join cluster as observer
-%
-join_cluster(ClusterName, observer) ->
-	join_cluster(ClusterName),
-	
-	end.
-
-%
 % Join cluster as slave
 %
 join_cluster(ClusterName) ->
@@ -132,9 +124,7 @@ join_cluster(ClusterName) ->
 			case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 				[{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes}] ->
 
-					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=sets:to_list(sets:from_list(SlaveNodes ++ [node()]))}),
-					% start replicating data
-					replicate(),
+					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=sets:to_list(sets:from_list(SlaveNodes ++ [node()])), observer_nodes=ObserverNodes}),
 
 					{connected, SlaveNodes};
 				Error ->
@@ -146,6 +136,13 @@ join_cluster(ClusterName) ->
 			Error
 	end.
 
+%
+% Join cluster as observer
+%
+join_cluster(ClusterName, observer) ->
+	join_cluster(ClusterName),
+	make_Observer(node()).
+
 
 leave_cluster() ->
 	IsMaster = am_I_Master(node()),
@@ -154,11 +151,10 @@ leave_cluster() ->
 			{error, {not_permitted, {}}};
 
 		[Data] -> 
-			{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes} = Data,
-			% TODO: remove node() from list
-			
-			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=SlaveNodes, observer_nodes=ObserverNodes}),
-			{okm disconnected_from_cluster};
+			{ldb_nodes, _, MasterNode, Slaves, Observers} = Data,
+			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=Slaves -- [node()], observer_nodes=Observers -- [node()]}),
+
+			{ok, disconnected_from_cluster};
 		Error ->
 			{error, {not_connected, Error}}
 	end.
@@ -179,6 +175,7 @@ am_I_Master(NodeName) ->
 			{error, {not_connected, Error}}
 	end.
 	
+% Only slaves can become Masters, not observers
 make_Master(NodeName) ->
 	IsMaster = am_I_Master(NodeName),
 	case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
@@ -193,14 +190,14 @@ make_Master(NodeName) ->
 		%% if node is a slave
 		%% remove him from there!
 		[{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes}] ->
-			NodeIsSlave = (SlaveNodes =/= ([NodeName] -- SlaveNodes)),
-			if NodeIsSlave =:= true  ->
+			NodeIsSlave = am_I_Slave(NodeName),
+			if NodeIsSlave =:= yes  ->
 					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=NodeName, 
 												  slave_nodes= (SlaveNodes -- [NodeName]) ++ [MasterNode],
 												  observer_nodes=ObserverNodes}),
 					{ok, i_am_master};
 			   true ->
-					{error, {already_master, {}}}
+					{error, {not_slave, {}}}
 			end;
 		Error ->
 			{error, {not_connected, Error}}
@@ -213,7 +210,7 @@ am_I_Slave(NodeName) ->
 		[] ->
 			{error, {not_connected, {}}};
 
-		[{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes}] ->
+		[{ldb_nodes, _, _, SlaveNodes, _}] ->
 			NodeIsSlave = (SlaveNodes =/= ([NodeName] -- SlaveNodes)),
 			if NodeIsSlave =:= true  -> yes;
 			   true -> no
@@ -233,16 +230,20 @@ make_Observer(NodeName) ->
 			{error, {not_connected, {}}};
 
 		%% if node is a slave
-		%% remove him from there!
+		%% remove him from there
+		%% and make him an observer
 		[{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes}] ->
 			NodeIsSlave = am_I_Slave(NodeName),
-			if NodeIsSlave =:= true  ->
-					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode
+			if NodeIsSlave =:= yes  ->
+					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode,
 												  slave_nodes=(SlaveNodes -- [NodeName]) ,
-												  observer_nodes=ObserverNodes ++ [NodeName]
-					{ok, i_am_master};
+												  observer_nodes=ObserverNodes ++ [NodeName]}),
+												  {ok, i_am_observer};
 			   true ->
-					{error, {already_master, {}}}
+					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode,
+												  slave_nodes=(SlaveNodes) ,
+												  observer_nodes=sets:to_list(sets:from_list(ObserverNodes ++ [NodeName]))}),
+					{ok, i_am_observer}
 			end;
 		Error ->
 			{error, {not_connected, Error}}
@@ -268,3 +269,51 @@ replicate() ->
 
 	% Updating replication stamp
 	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2,now())}).
+
+% Test if everything is working
+% start a node alpha@localhost.localdomain
+% then > replication:test_slave(alpha@localhost.localdomain).
+% make sure to update your /etc/hosts
+% 127.0.0.1	localhost.localdomain localhost
+
+test_slave(MasterNodeName) ->
+	% start one node as slave
+	{ok, ready_to_join} = replication:start(beta@localhost.localdomain, hello),
+
+	% join cluster
+	{connected,[]} = replication:join_cluster(MasterNodeName),
+	Master = MasterNodeName,
+	Beta = node(),
+
+	_ = Master,
+	_ = Beta,
+
+	% check nodes
+	{ready,[Master2,[Beta2],[]]} = replication:refresh(),
+	Master2 = MasterNodeName,
+	Beta2 = node(),
+	
+	yes = replication:am_I_Slave(node()),
+
+	no = replication:am_I_Master(node()),
+
+	{ok, i_am_master} = replication:make_Master(node()),
+
+	{ready,[Master3,[Beta3],[]]} = replication:refresh(),
+	Master3 = node(),
+	Beta3 = MasterNodeName,
+
+	{error, {is_master, {}}} = replication:make_Observer(node()),
+
+	% make someone else Master
+	{ok, i_am_master} = replication:make_Master(MasterNodeName),
+	{ready,[Master2,[Beta2],[]]} = replication:refresh(),
+
+	{ok, i_am_observer} = replication:make_Observer(node()),
+	{ready,[Master2,[],[Beta2]]} = replication:refresh(),
+	
+	{ok, disconnected_from_cluster} = replication:leave_cluster(),
+	
+	io:format("TEST SUCCESSFUL ~n").
+
+	
