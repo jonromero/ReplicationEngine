@@ -1,13 +1,21 @@
 -module(replication).
 
--export([start/2, start/3, stop/0]).
--export([refresh/0, join_cluster/1, join_cluster/2, leave_cluster/0, whois_Master/0, replicate/0, make_Master/1, make_Observer/1, am_I_Master/1, am_I_Slave/1, test_slave/1]).
+-behaviour(application).
+
+-export([start/0, start/2, stop/1]).
+-export([init/2, init/3, refresh/0, join_cluster/1, join_cluster/2, whois_Master/0, replicate/0, make_Master/1, make_Observer/1, am_I_Master/1, am_I_Slave/1, test_slave/1]).
 
 -include("node_records.hrl").
 
+start() ->
+	ok.
+
+start(_Type, _Args) ->
+	ok.
+
 % you need to start epmd first
 % try running an erl -name smth
-start(LongName, Cookie, master) ->
+init(LongName, Cookie, master) ->
 	net_kernel:start([LongName, longnames]),
 	erlang:set_cookie(node(), Cookie),
 
@@ -29,7 +37,7 @@ start(LongName, Cookie, master) ->
 	end.
   
 
-start(LongName, Cookie) ->
+init(LongName, Cookie) ->
 	net_kernel:start([LongName, longnames]),
 	erlang:set_cookie(node(), Cookie),
 
@@ -41,7 +49,9 @@ start(LongName, Cookie) ->
 			{error, {failed_to_start, Error}}
 	end.
 
-stop() ->
+
+stop(_State) ->
+	leave_cluster(),
 	net_kernel:stop(),
 	mnesia:stop().
 
@@ -278,7 +288,7 @@ replicate() ->
 
 test_slave(MasterNodeName) ->
 	% start one node as slave
-	{ok, ready_to_join} = replication:start(beta@localhost.localdomain, hello),
+	{ok, ready_to_join} = replication:init(beta@localhost.localdomain, hello),
 
 	% join cluster
 	{connected,[]} = replication:join_cluster(MasterNodeName),
@@ -312,7 +322,7 @@ test_slave(MasterNodeName) ->
 	{ok, i_am_observer} = replication:make_Observer(node()),
 	{ready,[Master2,[],[Beta2]]} = replication:refresh(),
 	
-	{ok, disconnected_from_cluster} = replication:leave_cluster(),
+	{ok, disconnected_from_cluster} = replication:stop(),
 	
 	io:format("TEST SUCCESSFUL ~n").
 
