@@ -1,33 +1,31 @@
-ReplicationEngine
+DanceCommander / ReplicationEngine 
 ========================
 
-A very simple (yet effective) replication system 
+A very simple (yet effective) replication (?) system 
 
 # Some info
-This is the experimental branch for λDB (BugSense's internal database).
-Expect to see lots of stuff changing all the time, formats being broken etc.
+DanceCommander provides replication features to servers along with automatic leader election and server presence.
+It aims to be a very simple set-and-forget service.
 
 Motto: Less is more
 
 # Architectural goals
-+ Decentralized (no master)
-+ Distributed
-+ Homogeneous (all nodes can do anything)
-+ Fault tolerant
++ Many DanceCommanders can be used (no single point of failure)
++ Replication is transparent
++ Elections are transparent and automatic
++ Keep it simple
 
 # How it works
-Read more at BugSense's post: http://blog.bugsense.com/post/30522575208/big-data-and-replication-challenge-accepted
+A DanceCommander starts and many nodes are connected (joining the cluster).
+One of the nodes is Master and the rest are the Slaves.
+The DanceCommanders are the Observers.
 
-Every node is the same. When the Master node goes down, the last-to-data-written replication node,
-is promoted to Master. When the Master node comes back, it is just a new replication node.
+Every N seconds (based on the DanceCommander's config), all the LIFF (latest) files
+are copied from Master to Slaves.
 
-# Pros
-+ Simple/fast implementation (a.k.a less bugs)
-+ Minimal downtime of the service
-+ Best ration consistency/speed
-
-# Cons
-+ NO guarandeed 100% consistency (there are more complicated algorithms and way better designed. Read: PAXOS).
+Promoting a Slave to Master translates to restarting the Slave node.
+Master nodes that have failed and returned, cannot join the cluster automatically.
+They must join the cluster as Slaves, sync data and then get promoted.
 
 
 Jon - https://twitter.com/jonromero
