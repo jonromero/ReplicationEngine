@@ -1,3 +1,7 @@
+%%% -*-mode:erlang;coding:utf-8;tab-width:4;c-basic-offset:4;indent-tabs-mode:()-*-
+%%% ex: set ft=erlang fenc=utf-8 sts=4 ts=4 sw=4 et:
+%%%
+
 -module(replication).
 
 -behaviour(application).
@@ -278,7 +282,7 @@ replicate() ->
 	io:format("--> [Replication Finished] ~n", []),
 
 	% Updating replication stamp
-	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2,now())}).
+	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2, erlang:timestamp())}).
 
 % Test if everything is working
 % start a node alpha@localhost.localdomain
@@ -288,15 +292,15 @@ replicate() ->
 
 test_slave(MasterNodeName) ->
 	% start one node as slave
-	{ok, ready_to_join} = replication:init(beta@localhost.localdomain, hello),
+	{ok, ready_to_join} = replication:init('beta@localhost.localdomain', 'hello'),
 
 	% join cluster
 	{connected,[]} = replication:join_cluster(MasterNodeName),
-	Master = MasterNodeName,
-	Beta = node(),
+	%Master = MasterNodeName,
+	%Beta = node(),
 
-	_ = Master,
-	_ = Beta,
+	%_ = Master,
+	%_ = Beta,
 
 	% check nodes
 	{ready,[Master2,[Beta2],[]]} = replication:refresh(),

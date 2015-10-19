@@ -1,0 +1,25 @@
+%%% -*-mode:erlang;coding:utf-8;tab-width:4;c-basic-offset:4;indent-tabs-mode:()-*-
+%%% ex: set ft=erlang fenc=utf-8 sts=4 ts=4 sw=4 et:
+%%%
+
+{application, 'replication',
+ [{description, "A very simple (yet effective) replication system for Mnesia cluster"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {'replication_app', []}},
+  {applications,
+   [kernel,
+    stdlib,
+    lager
+   ]},
+  {env,[
+  ]},
+  {modules, [
+    replication_sup,
+    replication_app,
+    replication
+  ]},
+  {contributors, []},
+  {licenses, []},
+  {links, []}
+ ]}.
