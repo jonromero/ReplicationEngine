@@ -99,8 +99,7 @@ refresh() ->
 			{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes} = Data,
 
 			% remove slave nodes that are down
-			SlaveNodesUp = lists:filter(fun(X) -> 
-									 check_if_alive(X) end,
+			SlaveNodesUp = lists:filter(fun(X) -> check_if_alive(X) end,
 							 SlaveNodes),
 
 			% remove observer nodes that are down
@@ -149,7 +148,6 @@ join_cluster(ClusterName) ->
 
 			case mnesia:dirty_read(ldb_nodes, "ldbNodes") of
 				[{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes}] ->
-
 					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, slave_nodes=sets:to_list(sets:from_list(SlaveNodes ++ [node()])), observer_nodes=ObserverNodes}),
 
 					{connected, SlaveNodes};
@@ -219,8 +217,8 @@ make_Master(NodeName) ->
 			NodeIsSlave = am_I_Slave(NodeName),
 			if NodeIsSlave =:= yes  ->
 					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=NodeName, 
-												  slave_nodes= (SlaveNodes -- [NodeName]) ++ [MasterNode],
-												  observer_nodes=ObserverNodes}),
+			                                      slave_nodes= (SlaveNodes -- [NodeName]) ++ [MasterNode],
+ 			                                      observer_nodes=ObserverNodes}),
 					{ok, i_am_master};
 			   true ->
 					{error, {not_slave, {}}}
@@ -262,13 +260,13 @@ make_Observer(NodeName) ->
 			NodeIsSlave = am_I_Slave(NodeName),
 			if NodeIsSlave =:= yes  ->
 					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode,
-												  slave_nodes=(SlaveNodes -- [NodeName]) ,
-												  observer_nodes=ObserverNodes ++ [NodeName]}),
-												  {ok, i_am_observer};
+			                                      slave_nodes=(SlaveNodes -- [NodeName]) ,
+			                                      observer_nodes=ObserverNodes ++ [NodeName]}),
+			                                      {ok, i_am_observer};
 			   true ->
 					mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode,
-												  slave_nodes=(SlaveNodes) ,
-												  observer_nodes=sets:to_list(sets:from_list(ObserverNodes ++ [NodeName]))}),
+			                                      slave_nodes=(SlaveNodes) ,
+			                                      observer_nodes=sets:to_list(sets:from_list(ObserverNodes ++ [NodeName]))}),
 					{ok, i_am_observer}
 			end;
 		Error ->
