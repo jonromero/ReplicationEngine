@@ -1,5 +1,5 @@
 #
-# Copyright 2015 Panagiotis Papadomitsos. All Rights Reserved.
+# Copyright 2015 Jonromero. All Rights Reserved.
 #
 # Build targets:
 #
@@ -91,7 +91,7 @@ dist: $(REBAR) test
 # =============================================================================
 
 shell: $(REBAR) epmd
-	@REBAR_PROFILE=dev $(REBAR) do shell --name gen_rpc@127.0.0.1
+	@REBAR_PROFILE=dev $(REBAR) do shell --name master_rep@127.0.0.1
 
 # =============================================================================
 # Misc targets
@@ -120,3 +120,5 @@ $(REBAR):
 
 tags:
 	find src _build/default/lib -name "*.[he]rl" -print | etags -
+
+
