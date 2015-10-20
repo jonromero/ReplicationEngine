@@ -3,40 +3,55 @@
 %%%
 
 -module(replication).
+-author("Jon Vlachoyiannis").
 
 -behaviour(application).
 
--export([start/0, start/2, stop/1]).
--export([init/2, init/3, refresh/0, join_cluster/1, join_cluster/2, whois_Master/0, replicate/0, make_Master/1, make_Observer/1, am_I_Master/1, am_I_Slave/1, test_slave/1]).
+-export([start/0,
+         start/2,
+         stop/1]).
+
+-export([init/2,
+         init/3,
+         refresh/0,
+         join_cluster/1,
+         join_cluster/2,
+         whois_Master/0,
+         replicate/0,
+         make_Master/1,
+         make_Observer/1,
+         am_I_Master/1,
+         am_I_Slave/1,
+         test_slave/1]).
 
 -include("node_records.hrl").
 
 start() ->
-	ok.
+    ok.
 
 start(_Type, _Args) ->
-	ok.
+    ok.
 
 % you need to start epmd first
 % try running an erl -name smth
 init(LongName, Cookie, master) ->
-	net_kernel:start([LongName, longnames]),
-	erlang:set_cookie(node(), Cookie),
+    net_kernel:start([LongName, longnames]),
+    erlang:set_cookie(node(), Cookie),
 
 	% starting mnesia
-	mnesia:create_schema(node()),
-	mnesia:start(),
+    mnesia:create_schema(node()),
+    mnesia:start(),
 	case mnesia:create_table(ldb_nodes, [{type, set},
-										 {ram_copies,[node()]},
-										 {local_content, false},
-										 {attributes, record_info(fields, ldb_nodes)}])  of
-		{atomic, ok} ->
+                                         {ram_copies,[node()]},
+                                         {local_content, false},
+                                         {attributes, record_info(fields, ldb_nodes)}])  of
+		 {atomic, ok} ->
 			mnesia:create_table(node_info, [{type, set},
-											{ram_copies,[node()]},
-											{local_content, false},
-											{attributes, record_info(fields, node_info)}]),
+                                            {ram_copies,[node()]},
+                                            {local_content, false},
+                                            {attributes, record_info(fields, node_info)}]),
 			make_Master(node());
-		Error ->
+		 Error ->
 			{error, {failed_master, Error}}
 	end.
   
@@ -62,14 +77,12 @@ stop(_State) ->
 % Returns a new Master based
 % on who was the last the got replicated data
 elections(LiveNodes) ->
-	NodesInfo = lists:flatten(lists:map(fun(X) -> 
-												mnesia:dirty_read(node_info, X) end, 
+	NodesInfo = lists:flatten(lists:map(fun(X) -> mnesia:dirty_read(node_info, X) end, 
 										LiveNodes)),
 	
 	io:format("XA ~p ~p ~n", [NodesInfo, LiveNodes]),
 						  
-	SortedNodes = lists:reverse(lists:map(fun(Y) ->
-												  element(2, Y) end,
+	SortedNodes = lists:reverse(lists:map(fun(Y) -> element(2, Y) end,
 										  lists:keysort(3, NodesInfo))),
 								
 	io:format("Sorted nodes ~p ~n", [SortedNodes]),
@@ -91,8 +104,7 @@ refresh() ->
 							 SlaveNodes),
 
 			% remove observer nodes that are down
-			ObserverNodesUp = lists:filter(fun(X) -> 
-												   check_if_alive(X) end,
+			ObserverNodesUp = lists:filter(fun(X) -> check_if_alive(X) end,
 										   ObserverNodes),
 			
 			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, 

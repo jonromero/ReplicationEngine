@@ -1,0 +1,8 @@
+{nodes, ['mnesia_master@127.0.0.1', 'mnesia_slave@127.0.0.1']}.
+
+{level, details}. 
+
+{incl_mods, [
+replication
+]}.
+

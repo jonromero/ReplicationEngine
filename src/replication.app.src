@@ -6,7 +6,7 @@
  [{description, "A very simple (yet effective) replication system for Mnesia cluster"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, {'replication_app', []}},
+  {mod, []},
   {applications,
    [kernel,
     stdlib,
@@ -15,11 +15,9 @@
   {env,[
   ]},
   {modules, [
-    replication_sup,
-    replication_app,
     replication
   ]},
-  {contributors, []},
-  {licenses, []},
-  {links, []}
+  {contributors, ["jonromero"]},
+  {licenses, [""]},
+  {links, ["https://github.com/jonromero/ReplicationEngine"]}
  ]}.

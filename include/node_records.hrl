@@ -5,7 +5,7 @@
 -record(node_info, {node_name :: node(),
         replication_time ::  erlang:timestamp()}).
 
--record(ldb_nodes, {clusterID :: integer(),
+-record(ldb_nodes, {clusterID :: list(),  % list for now 
         master_node ::node(),
         slave_nodes :: [node()],
         observer_nodes :: [node()]}).
