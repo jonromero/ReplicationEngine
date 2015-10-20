@@ -69,7 +69,7 @@ init(LongName, Cookie) ->
 	end.
 
 
-stop(_State) ->
+stop(_Reason) ->
 	leave_cluster(),
 	net_kernel:stop(),
 	mnesia:stop().
@@ -336,7 +336,7 @@ test_slave(MasterNodeName) ->
 	{ok, i_am_observer} = replication:make_Observer(node()),
 	{ready,[Master2,[],[Beta2]]} = replication:refresh(),
 	
-	{ok, disconnected_from_cluster} = replication:stop(),
+	{ok, disconnected_from_cluster} = replication:stop(normal),
 	
 	io:format("TEST SUCCESSFUL ~n").
 
