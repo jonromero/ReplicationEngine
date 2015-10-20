@@ -5,7 +5,7 @@ DanceCommander / ReplicationEngine
 
 A very simple (yet effective) replication (?) system 
 
-# Some info
+# Some info --
 DanceCommander provides replication features to servers along with automatic leader election and server presence.
 It aims to be a very simple set-and-forget service.
 
