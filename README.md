@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/jonromero/ReplicationEngine.svg)](https://travis-ci.org/jonromero/ReplicationEngine)
+
 DanceCommander / ReplicationEngine 
 ========================
 
