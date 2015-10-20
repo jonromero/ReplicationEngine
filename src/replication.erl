@@ -78,12 +78,12 @@ stop(_Reason) ->
 % on who was the last the got replicated data
 elections(LiveNodes) ->
 	NodesInfo = lists:flatten(lists:map(fun(X) -> mnesia:dirty_read(node_info, X) end, 
-										LiveNodes)),
+                                        LiveNodes)),
 	
 	io:format("XA ~p ~p ~n", [NodesInfo, LiveNodes]),
 						  
 	SortedNodes = lists:reverse(lists:map(fun(Y) -> element(2, Y) end,
-										  lists:keysort(3, NodesInfo))),
+                                         lists:keysort(3, NodesInfo))),
 								
 	io:format("Sorted nodes ~p ~n", [SortedNodes]),
 	SortedNodes.
@@ -250,7 +250,7 @@ make_Observer(NodeName) ->
 			{error, {is_master, {}}};
 
 		%% node hasn't joined a cluster 
-		[] ->
+		[] -> 
 			{error, {not_connected, {}}};
 
 		%% if node is a slave
