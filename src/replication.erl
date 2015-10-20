@@ -99,12 +99,12 @@ refresh() ->
 			{ldb_nodes, _, MasterNode, SlaveNodes, ObserverNodes} = Data,
 
 			% remove slave nodes that are down
-			SlaveNodesUp = lists:filter(fun(X) -> check_if_alive(X) end,
-							 SlaveNodes),
+			SlaveNodesUp = lists:filter(fun(X) -> check_if_alive(X) end, 
+                                        SlaveNodes),
 
 			% remove observer nodes that are down
 			ObserverNodesUp = lists:filter(fun(X) -> check_if_alive(X) end,
-										   ObserverNodes),
+                                           ObserverNodes),
 			
 			mnesia:dirty_write(#ldb_nodes{clusterID="ldbNodes", master_node=MasterNode, 
 										  slave_nodes=sets:to_list(sets:from_list(SlaveNodesUp)),
@@ -292,7 +292,7 @@ replicate() ->
 	io:format("--> [Replication Finished] ~n", []),
 
 	% Updating replication stamp
-	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2, erlang:timestamp())}).
+	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2, replication_helper:now())}).
 
 % Test if everything is working
 % start a node alpha@localhost.localdomain
