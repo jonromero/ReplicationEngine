@@ -292,7 +292,7 @@ replicate() ->
 	io:format("--> [Replication Finished] ~n", []),
 
 	% Updating replication stamp
-	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2, replication_helper:now())}).
+	mnesia:dirty_write(#node_info{node_name=node(), replication_time=element(2, ?now())}).
 
 % Test if everything is working
 % start a node alpha@localhost.localdomain

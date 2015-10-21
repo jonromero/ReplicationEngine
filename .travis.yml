@@ -12,7 +12,7 @@ cache:
   - $HOME/.cache/rebar3
   - _plt
 install: "true"
-script: "make test xref dialyzer"
+script: "make xref"
 branches:
   only:
     - master

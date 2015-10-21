@@ -1,0 +1,8 @@
+[{<<"goldrush">>,
+  {git,"git://github.com/DeadZen/goldrush.git",
+       {ref,"64864ba7fcf40988361340e48680b49a2c2938cf"}},
+  1},
+ {<<"lager">>,
+  {git,"git://github.com/basho/lager.git",
+       {ref,"cbf6679c6a693772fd1629c9cdc093e4c6c4ebf8"}},
+  0}].
