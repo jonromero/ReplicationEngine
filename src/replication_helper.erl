@@ -27,6 +27,8 @@ start_node(Node, Cookie) when is_atom(Node), is_atom(Cookie)->
             {ok, {Node, started}};
         {error,{already_started, _Pid}} ->
             {ok, {Node, already_started}};
+        {error,{{already_started, _Pid}}, _} ->
+            {ok, {Node, already_started}};
         {error, Reason} ->
             ok = ?CONSOLE("function=start_node event=fail_start_node Reason=\"~p\"", [Reason]),
             {error, Reason}
