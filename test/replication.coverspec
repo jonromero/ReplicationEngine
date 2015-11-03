@@ -1,4 +1,6 @@
 {nodes, ['mnesia_master@127.0.0.1', 'mnesia_slave@127.0.0.1']}.
+{import, ".eunit/cover.coverdata"}.
+{export, "logs/all.coverdata"}.
 {level, details}. 
 {incl_mods, [
     replication_helper
