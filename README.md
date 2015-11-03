@@ -1,6 +1,6 @@
 DanceCommander / ReplicationEngine 
 ========================
-[![Build Status](https://travis-ci.org/jonromero/ReplicationEngine.svg)](https://travis-ci.org/jonromero/ReplicationEngine) master: [![Coverage Status](https://coveralls.io/repos/jonromero/gen_rpc/badge.svg?branch=master&service=github)](https://coveralls.io/github/jonromero/gen_rpc?branch=master)
+master: [![Build Status](https://travis-ci.org/jonromero/ReplicationEngine.svg)](https://travis-ci.org/jonromero/ReplicationEngine) master: [![Coverage Status](https://coveralls.io/repos/jonromero/gen_rpc/badge.svg?branch=master&service=github)](https://coveralls.io/github/jonromero/gen_rpc?branch=master)
 
 A very simple (yet effective) replication (?) system 
 
