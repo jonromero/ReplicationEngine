@@ -42,6 +42,7 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
+
     test_helper:stop_master(),
     ok = ct:pal("Master \"~p\" stopped",[?NODE]),
     ok.
