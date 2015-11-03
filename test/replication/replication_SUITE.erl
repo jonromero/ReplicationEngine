@@ -4,8 +4,7 @@
 
 -module(replication_SUITE).
 
--include_lib("common_test/include/ct.hrl").
--include_lib("eunit/include/eunit.hrl").
+-include_lib("test/replication/include/ct.hrl").
 
 all() -> [].
 
@@ -16,8 +15,19 @@ end_per_suite(_Config) ->
     ok.
 
 init_per_testcase(_, Config) ->
+    test_helper:start_master(),
+    test_helper:start_slave(?SLAVE1, ?SLAVE1_NAME),
+    test_helper:start_slave(?SLAVE2, ?SLAVE2_NAME),
+    test_helper:start_slave(?OBSERVER, ?OBSERVER_NAME),
     Config.
 
 end_per_testcase(_, _Config) ->
+    test_helper:stop(?SLAVE1),
+    test_helper:stop(?SLAVE2),
+    test_helper:stop(?OBSERVER),
     ok.
+
+
+
+
 
