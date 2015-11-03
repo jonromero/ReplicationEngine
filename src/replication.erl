@@ -25,6 +25,7 @@
          test_slave/1]).
 
 -include("node_records.hrl").
+-include("replication.hrl").
 
 start() ->
     ok.
@@ -35,13 +36,11 @@ start(_Type, _Args) ->
 % you need to start epmd first
 % try running an erl -name smth
 init(LongName, Cookie, master) ->
-    net_kernel:start([LongName, longnames]),
-    erlang:set_cookie(node(), Cookie),
-
-	% starting mnesia
+    ok = replication_helper:start_node(LongName, Cookie),
+    % starting mnesia
     mnesia:create_schema(node()),
     mnesia:start(),
-	case mnesia:create_table(ldb_nodes, [{type, set},
+    case mnesia:create_table(ldb_nodes, [{type, set},
                                          {ram_copies,[node()]},
                                          {local_content, false},
                                          {attributes, record_info(fields, ldb_nodes)}])  of
@@ -53,13 +52,11 @@ init(LongName, Cookie, master) ->
 			make_Master(node());
 		 Error ->
 			{error, {failed_master, Error}}
-	end.
+    end.
   
 
 init(LongName, Cookie) ->
-	net_kernel:start([LongName, longnames]),
-	erlang:set_cookie(node(), Cookie),
-
+    ok = replication_helper:start_node(LongName, Cookie),
 	% starting mnesia for replication slave
 	case mnesia:start() of
 		ok ->
@@ -306,11 +303,6 @@ test_slave(MasterNodeName) ->
 
 	% join cluster
 	{connected,[]} = replication:join_cluster(MasterNodeName),
-	%Master = MasterNodeName,
-	%Beta = node(),
-
-	%_ = Master,
-	%_ = Beta,
 
 	% check nodes
 	{ready,[Master2,[Beta2],[]]} = replication:refresh(),

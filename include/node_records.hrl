@@ -11,10 +11,3 @@
         observer_nodes :: [node()]}).
 
 
--ifdef(noerlangnow).
-%-compile({nowarn_deprecated_function, {erlang,now,0}}).
--define(now(), erlang:timestamp()).
--else.
--define(now(), erlang:now()).
--endif.
--undef(noerlangnow).
