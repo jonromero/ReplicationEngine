@@ -13,6 +13,7 @@ cache:
   - _plt
 install: "true"
 script: "make xref"
+after_success: "make coverage-report"
 branches:
   only:
     - master

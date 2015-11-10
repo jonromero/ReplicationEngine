@@ -1,8 +1,8 @@
 {nodes, ['mnesia_master@127.0.0.1', 'mnesia_slave@127.0.0.1']}.
-
+{export, "log/all.coverdata"}.
 {level, details}. 
-
 {incl_mods, [
-replication
+    replication_helper,
+    replication
 ]}.
 

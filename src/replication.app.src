@@ -18,6 +18,6 @@
     replication
   ]},
   {contributors, ["jonromero"]},
-  {licenses, [""]},
+  {licenses, ["https://github.com/jonromero/ReplicationEngine/LICENSES"]},
   {links, ["https://github.com/jonromero/ReplicationEngine"]}
  ]}.

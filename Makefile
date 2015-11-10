@@ -10,6 +10,7 @@
 #               and explicitly delete other build artifacts
 # test: 		rebar3 as test do ct -v, cover
 # dialyzer: 	rebar3 as test do dialyzer
+# coverage-report: 	send coverage to coverall.io
 # xref:			rebar3 as dev do xref
 # dist: 		rebar3 as test do compile, ct -v, xref, dialyzer, cover
 # spec: 		Runs typer to generate source code specs
@@ -25,7 +26,7 @@
 .DEFAULT_GOAL := all
 
 # Build targets
-.PHONY: all test dialyzer xref spec dist
+.PHONY: all test dialyzer xref spec dist coverage-report
 
 # Run targets
 .PHONY: shell
@@ -63,6 +64,12 @@ endif
 REBAR_URL = https://s3.amazonaws.com/rebar3/rebar3
 
 PLT_FILE = $(CURDIR)/_plt/*plt
+
+# Send Code coverage data only when in TraviscI
+ifeq ($(USER),travis)
+COVERDATADIR = $(CURDIR)/log/ct
+ECOVERALL = $(CURDIR)/_build/test/lib/*/ebin
+endif
 
 # =============================================================================
 # Build targets
@@ -120,5 +127,8 @@ $(REBAR):
 
 tags:
 	find src _build/default/lib -name "*.[he]rl" -print | etags -
+
+coverage-report: $(shell ls -1rt `find $(COVERDATADIR) -type f -name \*.coverdata 2>/dev/null` | tail -n1)
+	$(gen_verbose) erl -noshell -pa $(ECOVERALL) -eval 'ecoveralls:travis_ci("$?"), init:stop()'
 
 
